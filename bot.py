@@ -22,8 +22,9 @@ if not DISCORD_TOKEN:
 CHECK_INTERVAL = 60
 AUTO_POST_CHANNEL_FILE = "auto_post_channel.txt"
 INSTAGRAM_LOGO_PATH = os.path.join(os.path.dirname(__file__), "instagram.png")  # Path to instagram.png
-DISCORD_FILE_SIZE_LIMIT = 8 * 1024 * 1024  # 8MB default for free servers
-STORY_EXPIRATION_HOURS = 24  # Instagram stories expire after 24 hours
+DISCORD_FILE_SIZE_LIMIT = 8 * 1024 * 1024  
+STORY_EXPIRATION_HOURS = 24  # 
+DISCORD_FILE_SIZE_LIMIT = 10 * 1024 * 1024  
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -58,6 +59,14 @@ def save_auto_post_channel(channel_id: Optional[int]) -> None:
     except Exception as e:
         logging.error(f"Error saving auto-post channel ID: {e}")
         print(f"Error saving auto-post channel ID: {e}")
+
+def is_admin():
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("You need administrator permissions to use this command.", ephemeral=True)
+            return False
+        return True
+    return app_commands.check(predicate)
 
 @tasks.loop(seconds=CHECK_INTERVAL)
 async def check_social_posts():
@@ -431,6 +440,7 @@ async def check_social_posts():
             print(f"Auto-posted Instagram story {item['shortcode']} to channel {auto_post_channel_id}, message_id: {message.id}")
 
 @tree.command(name="ping", description="Check for new Instagram posts and stories in the current channel")
+@is_admin()
 async def ping(interaction: discord.Interaction):
     """Check for new Instagram posts and stories in the current channel."""
     await interaction.response.send_message("🔄 Checking for new Instagram posts and stories, please wait...", ephemeral=True)
@@ -486,14 +496,14 @@ async def ping(interaction: discord.Interaction):
                     try:
                         deleted_at_dt = datetime.strptime(deleted_at, "%Y-%m-%d %H:%M:%S UTC")
                         deleted_at_discord = f"<t:{int(deleted_at_dt.replace(tzinfo=timezone.utc).timestamp())}:F>"
-                    except ValueError as e:
+                    except	ValueError as e:
                         logging.error(f"Invalid deleted_at timestamp format for {shortcode}: {deleted_at}, error: {e}")
                         deleted_at_discord = deleted_at or current_utc
                 else:
                     logging.warning(f"deleted_at is None or not a string for {shortcode}: {deleted_at}, using current_utc")
                     deleted_at_discord = f"<t:{int(datetime.strptime(current_utc, '%Y-%m-%d %H:%M:%S UTC').replace(tzinfo=timezone.utc).timestamp())}:F>"
 
-                like_count = deleted_post["entry"].get("like_count", None)
+                like_Command = deleted_post["entry"].get("like_count", None)
                 comment_count = deleted_post["entry"].get("comment_count", None)
                 if like_count is None or comment_count is None:
                     cached_post = INSTAGRAM_POST_CACHE.get(username, {}).get("post", {})
@@ -799,8 +809,10 @@ async def ping(interaction: discord.Interaction):
             print(f"Posted Instagram story {item['shortcode']} to channel {channel.id}, message_id: {message.id}")
     await interaction.followup.send("✅ New Instagram posts and stories checked and posted if available.", ephemeral=True)
 
+    
 @tree.command(name="autopost", description="Enable/disable auto-posting of new Instagram posts and stories to a specified channel")
 @app_commands.describe(channel="The channel to auto-post new Instagram posts and stories to (leave empty to disable)")
+@is_admin()
 async def autopost(interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
     """Enable or disable auto-posting of Instagram posts and stories."""
     await interaction.response.defer(ephemeral=True)
